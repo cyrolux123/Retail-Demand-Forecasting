@@ -1,0 +1,1 @@
+{"lookback": 30, "n_features": 15, "features": ["dayofweek", "month", "is_weekend", "month_sin", "month_cos", "dow_sin", "dow_cos", "doy_sin", "doy_cos", "lag_7", "lag_14", "lag_28", "roll_mean_7", "roll_mean_14", "roll_std_7"]}
