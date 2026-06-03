@@ -23,7 +23,12 @@ import json
 # 
 # CONFIG
 # 
-API_URL = "http://localhost:8000"   # change this if your FastAPI runs elsewhere
+USE_RENDER = True
+
+if USE_RENDER:
+    API_URL = "https://retail-demand-api.onrender.com"
+else:
+    API_URL = "http://localhost:8000" 
 
 st.set_page_config(
     page_title="Retail Demand Forecasting",
