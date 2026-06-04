@@ -400,7 +400,6 @@ Rows where `lag_365` is NaN (the first ~365 days per series) are dropped before 
 |---|---|---|
 | **MAE** | mean(|actual − predicted|) | Average error in sales units - easy to interpret |
 | **RMSE** | √mean((actual − predicted)²) | Penalises large errors more heavily than MAE |
-| **SMAPE** | mean(200 × |actual − predicted| / (|actual| + |predicted|)) | Percentage error - comparable across items with different sales volumes |
 | **R²** | 1 − (SS_res / SS_tot) | How much variance the model explains. 1.0 = perfect, 0 = no better than mean |
 
 ---
