@@ -359,6 +359,15 @@ class BatchPredictRequest(BaseModel):
 
 # ENDPOINTS
 
+# Root endpoint
+@app.get("/")
+def home():
+    return {
+        "status": "success",
+        "message": "Retail Demand Forecasting API is running",
+        "docs": "/docs"
+    }
+
 # 1. Health Check
 @app.get("/health", tags=["Monitoring"])
 def health_check():
