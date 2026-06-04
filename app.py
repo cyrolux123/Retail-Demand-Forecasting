@@ -119,9 +119,9 @@ with st.sidebar:
     # API health badge
     is_healthy, health_data = check_api_health()
     if is_healthy:
-        st.success("🟢 API Online", icon="✅")
+        st.success(" API Online", icon="")
     else:
-        st.error("🔴 API Offline — start FastAPI first", icon="🚨")
+        st.error(" API Offline — start FastAPI first", icon="🚨")
         st.code("uvicorn main:app --reload", language="bash")
 
     st.divider()
@@ -130,12 +130,12 @@ with st.sidebar:
     page = st.radio(
         "Navigate",
         options=[
-            "🏠 Overview",
-            "🔮 Single Prediction",
-            "📅 Date Range Forecast",
-            "📊 Store Dashboard",
-            "📤 CSV Upload",
-            "ℹ️ Model Info"
+            " Overview",
+            " Single Prediction",
+            " Date Range Forecast",
+            " Store Dashboard",
+            " CSV Upload",
+            " Model Info"
         ]
     )
 
@@ -186,8 +186,8 @@ def plot_bar_items(df: pd.DataFrame, title: str):
 # 
 # PAGE: OVERVIEW
 # 
-if page == "🏠 Overview":
-    st.title("📦 Retail Demand Forecasting Dashboard")
+if page == " Overview":
+    st.title(" Retail Demand Forecasting Dashboard")
     st.markdown("""
     This dashboard is powered by a **LightGBM** model trained on the
     *Store Item Demand Forecasting* dataset (Kaggle).
@@ -231,21 +231,21 @@ if page == "🏠 Overview":
 
     st.divider()
     st.markdown("""
-    ### 📌 How to Use This Dashboard
+    ### How to Use This Dashboard
     | Page | What it does |
     |---|---|
-    | 🔮 Single Prediction | Predict sales for one store, item, and date |
-    | 📅 Date Range Forecast | Forecast an entire date range with charts |
-    | 📊 Store Dashboard | All-item forecast summary for a store |
-    | 📤 CSV Upload | Upload a CSV and download predictions |
-    | ℹ️ Model Info | Feature list and model metadata |
+    |  Single Prediction | Predict sales for one store, item, and date |
+    |  Date Range Forecast | Forecast an entire date range with charts |
+    |  Store Dashboard | All-item forecast summary for a store |
+    |  CSV Upload | Upload a CSV and download predictions |
+    | Model Info | Feature list and model metadata |
     """)
 
 # 
 # PAGE: SINGLE PREDICTION
 # 
-elif page == "🔮 Single Prediction":
-    st.title("🔮 Single Day Prediction")
+elif page == " Single Prediction":
+    st.title(" Single Day Prediction")
     st.markdown("Predict sales for a specific **store**, **item**, and **date**.")
 
     col1, col2, col3 = st.columns(3)
@@ -261,7 +261,7 @@ elif page == "🔮 Single Prediction":
             max_value=datetime(2025, 12, 31)
         )
 
-    if st.button("🚀 Predict", type="primary", use_container_width=True):
+    if st.button(" Predict", type="primary", use_container_width=True):
         if not is_healthy:
             st.error("API is offline. Please start the FastAPI server.")
         else:
@@ -270,7 +270,7 @@ elif page == "🔮 Single Prediction":
                     result = predict_single(store, item, date)
                     pred   = result["predicted_sales"]
 
-                    st.success(f"✅ Prediction complete!")
+                    st.success(f" Prediction complete!")
 
                     col_a, col_b, col_c, col_d = st.columns(4)
                     col_a.metric("Store",           store)
@@ -314,8 +314,8 @@ elif page == "🔮 Single Prediction":
 # 
 # PAGE: DATE RANGE FORECAST
 # 
-elif page == "📅 Date Range Forecast":
-    st.title("📅 Date Range Forecast")
+elif page == " Date Range Forecast":
+    st.title(" Date Range Forecast")
     st.markdown("Forecast daily sales for a store-item pair over a **date range**.")
 
     col1, col2 = st.columns(2)
@@ -336,7 +336,7 @@ elif page == "📅 Date Range Forecast":
             max_value=datetime(2025, 12, 31)
         )
 
-    if st.button("📈 Forecast", type="primary", use_container_width=True):
+    if st.button(" Forecast", type="primary", use_container_width=True):
         if not is_healthy:
             st.error("API is offline.")
         elif start_date > end_date:
@@ -394,13 +394,13 @@ elif page == "📅 Date Range Forecast":
                         st.plotly_chart(fig_w, use_container_width=True)
 
                     # Raw data table (collapsible)
-                    with st.expander("📋 View Raw Forecast Data"):
+                    with st.expander(" View Raw Forecast Data"):
                         st.dataframe(fc_df, use_container_width=True, hide_index=True)
 
                         # Download button
                         csv = fc_df.to_csv(index=False)
                         st.download_button(
-                            label="⬇️ Download Forecast CSV",
+                            label=" Download Forecast CSV",
                             data=csv,
                             file_name=f"forecast_store{store}_item{item}.csv",
                             mime="text/csv"
@@ -412,8 +412,8 @@ elif page == "📅 Date Range Forecast":
 # 
 # PAGE: STORE DASHBOARD
 # 
-elif page == "📊 Store Dashboard":
-    st.title("📊 Store Forecast Dashboard")
+elif page == " Store Dashboard":
+    st.title(" Store Forecast Dashboard")
     st.markdown(
         "View a forecast summary for **all 50 items** in a store "
         "over the next N days."
@@ -425,7 +425,7 @@ elif page == "📊 Store Dashboard":
     with col2:
         days = st.slider("Forecast Horizon (days)", min_value=7, max_value=90, value=30, step=7)
 
-    if st.button("📊 Generate Store Dashboard", type="primary", use_container_width=True):
+    if st.button(" Generate Store Dashboard", type="primary", use_container_width=True):
         if not is_healthy:
             st.error("API is offline.")
         else:
@@ -446,7 +446,7 @@ elif page == "📊 Store Dashboard":
 
                     col_left, col_right = st.columns([1, 2])
                     with col_left:
-                        st.subheader("📋 Item Forecast Table")
+                        st.subheader(" Item Forecast Table")
                         st.dataframe(
                             item_df,
                             use_container_width=True,
@@ -458,7 +458,7 @@ elif page == "📊 Store Dashboard":
                         )
 
                     with col_right:
-                        st.subheader("📊 Total Forecast by Item")
+                        st.subheader(" Total Forecast by Item")
                         st.plotly_chart(
                             plot_bar_items(
                                 item_df.rename(columns={
@@ -490,7 +490,7 @@ elif page == "📊 Store Dashboard":
                         st.plotly_chart(fig_top, use_container_width=True)
 
                     with col_bot:
-                        st.subheader("⬇️ Bottom 10 Items by Forecast")
+                        st.subheader(" Bottom 10 Items by Forecast")
                         bot10 = item_df.nsmallest(10, "Total Forecast")
                         fig_bot = px.bar(
                             bot10, x="Item ID", y="Total Forecast",
@@ -507,7 +507,7 @@ elif page == "📊 Store Dashboard":
                     # Download
                     csv = item_df.to_csv(index=False)
                     st.download_button(
-                        label="⬇️ Download Store Forecast CSV",
+                        label=" Download Store Forecast CSV",
                         data=csv,
                         file_name=f"store{store}_forecast_{days}days.csv",
                         mime="text/csv"
@@ -519,8 +519,8 @@ elif page == "📊 Store Dashboard":
 # 
 # PAGE: CSV UPLOAD
 # 
-elif page == "📤 CSV Upload":
-    st.title("📤 Batch Prediction via CSV Upload")
+elif page == " CSV Upload":
+    st.title(" Batch Prediction via CSV Upload")
     st.markdown("""
     Upload a CSV file with columns **store**, **item**, **date**
     and download predictions for all rows.
@@ -538,7 +538,7 @@ elif page == "📤 CSV Upload":
     # Sample download
     sample_data = "store,item,date\n1,1,2018-01-01\n1,2,2018-01-01\n2,5,2018-02-14\n3,10,2018-03-15\n"
     st.download_button(
-        label="⬇️ Download Sample CSV",
+        label=" Download Sample CSV",
         data=sample_data,
         file_name="sample_input.csv",
         mime="text/csv"
@@ -557,7 +557,7 @@ elif page == "📤 CSV Upload":
             preview_df = pd.read_csv(uploaded_file)
             uploaded_file.seek(0)   # reset file pointer after reading
 
-            st.subheader("📋 Preview (first 10 rows)")
+            st.subheader(" Preview (first 10 rows)")
             st.dataframe(preview_df.head(10), use_container_width=True, hide_index=True)
             st.caption(f"Total rows: {len(preview_df):,}")
 
@@ -566,7 +566,7 @@ elif page == "📤 CSV Upload":
             if not required.issubset(set(preview_df.columns)):
                 st.error(f"CSV must have columns: {required}. Found: {set(preview_df.columns)}")
             else:
-                if st.button("🚀 Run Predictions", type="primary", use_container_width=True):
+                if st.button(" Run Predictions", type="primary", use_container_width=True):
                     if not is_healthy:
                         st.error("API is offline.")
                     else:
@@ -579,7 +579,7 @@ elif page == "📤 CSV Upload":
 
                                 # Show results
                                 result_df = pd.read_csv(io.BytesIO(result_csv_bytes))
-                                st.success(f"✅ Predictions complete for {len(result_df):,} rows!")
+                                st.success(f" Predictions complete for {len(result_df):,} rows!")
 
                                 # Summary stats
                                 col_a, col_b, col_c = st.columns(3)
@@ -588,7 +588,7 @@ elif page == "📤 CSV Upload":
                                 col_c.metric("Avg Predicted Sales",   round(result_df["predicted_sales"].mean(), 1))
 
                                 # Preview
-                                st.subheader("📋 Prediction Results (first 20 rows)")
+                                st.subheader(" Prediction Results (first 20 rows)")
                                 st.dataframe(
                                     result_df.head(20),
                                     use_container_width=True,
@@ -611,7 +611,7 @@ elif page == "📤 CSV Upload":
 
                                 # Download
                                 st.download_button(
-                                    label="⬇️ Download Predictions CSV",
+                                    label="Download Predictions CSV",
                                     data=result_csv_bytes,
                                     file_name="predictions.csv",
                                     mime="text/csv",
@@ -627,8 +627,8 @@ elif page == "📤 CSV Upload":
 # 
 # PAGE: MODEL INFO
 # 
-elif page == "ℹ️ Model Info":
-    st.title("ℹ️ Model Information")
+elif page == "ℹModel Info":
+    st.title("ℹModel Information")
 
     if not is_healthy:
         st.error("API is offline. Cannot fetch model info.")
@@ -645,7 +645,7 @@ elif page == "ℹ️ Model Info":
                 st.divider()
 
                 # Feature list table
-                st.subheader("📋 Feature List")
+                st.subheader("Feature List")
                 features = info.get("feature_list", [])
                 if features:
                     # Categorise features
