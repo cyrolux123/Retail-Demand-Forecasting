@@ -119,7 +119,7 @@ with st.sidebar:
     # API health badge
     is_healthy, health_data = check_api_health()
     if is_healthy:
-        st.success(" API Online", icon="")
+        st.success(" API Online", icon="✅")
     else:
         st.error(" API Offline — start FastAPI first", icon="🚨")
         st.code("uvicorn main:app --reload", language="bash")
