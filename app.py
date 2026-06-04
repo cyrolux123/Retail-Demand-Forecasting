@@ -434,11 +434,17 @@ elif page == " Store Dashboard":
                     result = get_store_summary(store, days)
 
                     # Top-level metrics
-                    col_a, col_b, col_c, col_d = st.columns(4)
-                    col_a.metric("Store",               f"Store {store}")
-                    col_b.metric("Forecast Period",     f"{result['forecast_start']} → {result['forecast_end']}")
-                    col_c.metric("Total Items",         result["total_items"])
-                    col_d.metric("Total Store Forecast", f"{result['total_store_forecast']:,} units")
+                    col_a, col_b, col_c = st.columns(3)
+                    col_a.metric("Store", f"Store {store}")
+                    col_b.markdown("### Forecast Period")
+                    col_b.info(f"{result['forecast_start']} → {result['forecast_end']}")
+
+                    col_c.metric(
+                        "Total Store Forecast",
+                        f"{result['total_store_forecast']:,} units"
+                    )
+
+                    st.metric("Total Items", result["total_items"])
 
                     # Item summary table
                     item_df = pd.DataFrame(result["item_forecasts"])
