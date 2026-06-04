@@ -213,7 +213,7 @@ if page == " Overview":
     col3.metric("RMSE",        "0.64")
     col4.metric("R²",          "0.9995")
 
-    st.dataframe(perf_df, use_container_width=True, hide_index=True)
+    st.dataframe(perf_df, width=True, hide_index=True)
 
     st.divider()
 
@@ -227,7 +227,7 @@ if page == " Overview":
         template="plotly_dark"
     )
     fig.update_layout(plot_bgcolor="#0e1117", paper_bgcolor="#0e1117", font_color="white")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width=True)
 
     st.divider()
     st.markdown("""
@@ -261,7 +261,7 @@ elif page == " Single Prediction":
             max_value=datetime(2025, 12, 31)
         )
 
-    if st.button(" Predict", type="primary", use_container_width=True):
+    if st.button(" Predict", type="primary", width=True):
         if not is_healthy:
             st.error("API is offline. Please start the FastAPI server.")
         else:
@@ -304,7 +304,7 @@ elif page == " Single Prediction":
                         font_color="white",
                         height=300
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width=True)
 
                     st.json(result)
 
@@ -336,7 +336,7 @@ elif page == " Date Range Forecast":
             max_value=datetime(2025, 12, 31)
         )
 
-    if st.button(" Forecast", type="primary", use_container_width=True):
+    if st.button(" Forecast", type="primary", width=True):
         if not is_healthy:
             st.error("API is offline.")
         elif start_date > end_date:
@@ -365,7 +365,7 @@ elif page == " Date Range Forecast":
                             fc_df,
                             f"Daily Sales Forecast — Store {store}, Item {item}"
                         ),
-                        use_container_width=True
+                        width=True
                     )
 
                     # Weekly aggregation
@@ -376,7 +376,7 @@ elif page == " Date Range Forecast":
                     st.subheader("Weekly Forecast Summary")
                     col_left, col_right = st.columns(2)
                     with col_left:
-                        st.dataframe(weekly, use_container_width=True, hide_index=True)
+                        st.dataframe(weekly, width=True, hide_index=True)
                     with col_right:
                         fig_w = px.bar(
                             weekly, x="Week", y="Weekly Sales",
@@ -391,11 +391,11 @@ elif page == " Date Range Forecast":
                             font_color="white",
                             xaxis_tickangle=-45
                         )
-                        st.plotly_chart(fig_w, use_container_width=True)
+                        st.plotly_chart(fig_w, width=True)
 
                     # Raw data table (collapsible)
                     with st.expander(" View Raw Forecast Data"):
-                        st.dataframe(fc_df, use_container_width=True, hide_index=True)
+                        st.dataframe(fc_df, width=True, hide_index=True)
 
                         # Download button
                         csv = fc_df.to_csv(index=False)
@@ -425,7 +425,7 @@ elif page == " Store Dashboard":
     with col2:
         days = st.slider("Forecast Horizon (days)", min_value=7, max_value=90, value=30, step=7)
 
-    if st.button(" Generate Store Dashboard", type="primary", use_container_width=True):
+    if st.button(" Generate Store Dashboard", type="primary", width=True):
         if not is_healthy:
             st.error("API is offline.")
         else:
@@ -449,7 +449,7 @@ elif page == " Store Dashboard":
                         st.subheader(" Item Forecast Table")
                         st.dataframe(
                             item_df,
-                            use_container_width=True,
+                            width=True,
                             hide_index=True,
                             column_config={
                                 "Total Forecast":  st.column_config.NumberColumn(format="%d units"),
@@ -467,7 +467,7 @@ elif page == " Store Dashboard":
                                 }),
                                 f"Store {store} — Total Forecast by Item ({days} days)"
                             ),
-                            use_container_width=True
+                            width=True
                         )
 
                     # Top 10 / Bottom 10
@@ -487,7 +487,7 @@ elif page == " Store Dashboard":
                             paper_bgcolor="#0e1117",
                             font_color="white"
                         )
-                        st.plotly_chart(fig_top, use_container_width=True)
+                        st.plotly_chart(fig_top, width=True)
 
                     with col_bot:
                         st.subheader(" Bottom 10 Items by Forecast")
@@ -502,7 +502,7 @@ elif page == " Store Dashboard":
                             paper_bgcolor="#0e1117",
                             font_color="white"
                         )
-                        st.plotly_chart(fig_bot, use_container_width=True)
+                        st.plotly_chart(fig_bot, width=True)
 
                     # Download
                     csv = item_df.to_csv(index=False)
@@ -558,7 +558,7 @@ elif page == " CSV Upload":
             uploaded_file.seek(0)   # reset file pointer after reading
 
             st.subheader(" Preview (first 10 rows)")
-            st.dataframe(preview_df.head(10), use_container_width=True, hide_index=True)
+            st.dataframe(preview_df.head(10), width=True, hide_index=True)
             st.caption(f"Total rows: {len(preview_df):,}")
 
             # Check required columns
@@ -566,7 +566,7 @@ elif page == " CSV Upload":
             if not required.issubset(set(preview_df.columns)):
                 st.error(f"CSV must have columns: {required}. Found: {set(preview_df.columns)}")
             else:
-                if st.button(" Run Predictions", type="primary", use_container_width=True):
+                if st.button(" Run Predictions", type="primary", width=True):
                     if not is_healthy:
                         st.error("API is offline.")
                     else:
@@ -591,7 +591,7 @@ elif page == " CSV Upload":
                                 st.subheader(" Prediction Results (first 20 rows)")
                                 st.dataframe(
                                     result_df.head(20),
-                                    use_container_width=True,
+                                    width=True,
                                     hide_index=True
                                 )
 
@@ -607,7 +607,7 @@ elif page == " CSV Upload":
                                     paper_bgcolor="#0e1117",
                                     font_color="white"
                                 )
-                                st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, width=True)
 
                                 # Download
                                 st.download_button(
@@ -615,7 +615,7 @@ elif page == " CSV Upload":
                                     data=result_csv_bytes,
                                     file_name="predictions.csv",
                                     mime="text/csv",
-                                    use_container_width=True
+                                    width=True
                                 )
 
                             except Exception as e:
@@ -668,7 +668,7 @@ elif page == "ℹModel Info":
                         default=feat_df["Category"].unique().tolist()
                     )
                     filtered = feat_df[feat_df["Category"].isin(category_filter)]
-                    st.dataframe(filtered, use_container_width=True, hide_index=True)
+                    st.dataframe(filtered, width=True, hide_index=True)
 
                     # Pie chart of feature categories
                     cat_counts = feat_df["Category"].value_counts().reset_index()
@@ -680,7 +680,7 @@ elif page == "ℹModel Info":
                         color_discrete_sequence=px.colors.qualitative.Pastel
                     )
                     fig.update_layout(paper_bgcolor="#0e1117", font_color="white")
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width=True)
 
                 st.divider()
 
