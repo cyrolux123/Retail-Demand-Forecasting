@@ -202,7 +202,6 @@ if page == " Overview":
         "Model":   ["LightGBM", "CatBoost", "XGBoost", "Random Forest", "Linear Regression"],
         "MAE":     [0.4665,     0.5610,     0.5879,    0.7668,          0.0],
         "RMSE":    [0.6368,     0.7240,     0.7745,    1.1638,          0.0],
-        "SMAPE %": [1.10,       1.40,       1.39,      2.28,            0.0],
         "R²":      [0.9995,     0.9994,     0.9993,    0.9983,          1.0],
     }
     perf_df = pd.DataFrame(perf)
@@ -633,8 +632,8 @@ elif page == " CSV Upload":
 # 
 # PAGE: MODEL INFO
 # 
-elif page == "ℹModel Info":
-    st.title("ℹModel Information")
+elif page == "Model Info":
+    st.title("Model Information")
 
     if not is_healthy:
         st.error("API is offline. Cannot fetch model info.")
@@ -691,7 +690,7 @@ elif page == "ℹModel Info":
                 st.divider()
 
                 # Raw API response
-                with st.expander("🔧 Raw API Response"):
+                with st.expander(" Raw API Response"):
                     st.json(info)
 
             except Exception as e:
