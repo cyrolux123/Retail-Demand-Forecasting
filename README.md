@@ -438,4 +438,4 @@ Data Scientist · Kathmandu, Nepal
 
 ---
 
-*Built as a portfolio project demonstrating end-to-end ML engineering - from raw time series data to a live production forecasting API.*
+*Built as a portfolio project demonstrating end-to-end Sales Forecasting Project- from raw time series data to a live production forecasting API.*
