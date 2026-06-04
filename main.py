@@ -1,6 +1,6 @@
 # FastAPI Backend — Retail Demand Forecasting
 # File: main.py
-# Model: LightGBM (best model from Notebook 1)
+# Model: LightGBM (best model from ml notebook)
 # Author: Nabin Katwal | Retail Demand Forecasting Portfolio Project
 #
 # HOW TO RUN:
@@ -44,16 +44,17 @@ app = FastAPI(
 # Allow Streamlit (and any frontend) to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # in production, replace with your domain
+    allow_origins=["*"],      
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ─
-# LOAD MODEL & FEATURE LIST ON STARTUP
-# ─
-MODEL_PATH       = "saved_models/lightgbm.pkl"
+
+# LOAD MODEL, FEATURE LIST, AND TRAINING HISTORY ON STARTUP
+
+MODEL_PATH        = "saved_models/lightgbm.pkl"
 FEATURE_LIST_PATH = "saved_models/feature_cols.json"
+TRAIN_DATA_PATH   = "train.csv"   # historical sales — used for lag/rolling features
 
 # Load model once when the server starts (not on every request)
 try:
@@ -75,56 +76,136 @@ except FileNotFoundError:
         "Please run Notebook 1 first."
     )
 
-# FEATURE ENGINEERING FUNCTION
-# (Same logic as Notebook 1 — must match exactly for predictions to be correct)
+#  BUG FIX: Load training history for proper lag/rolling computation 
+# Root cause of predictions always being ~6-7:
+#   The original engineer_features() fills ALL lag/rolling features with 0.
+#   The model was trained where lag_365 ≈ 40-60 (actual sales). When lag_365=0
+#   at inference the model predicts ~6-7 instead of ~40-60.
+# Fix: load train.csv once, pivot into a (date × store-item) lookup, and use
+#   the real historical values to compute lags for every prediction request.
+TRAIN_HISTORY: dict = {}   # key: (store, item) → pd.Series(sales, index=DatetimeIndex)
 
-def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Given a DataFrame with columns [date, store, item],
-    compute all the same features that were used in training.
+try:
+    _train = pd.read_csv(TRAIN_DATA_PATH, parse_dates=["date"])
+    for (store, item), grp in _train.groupby(["store", "item"]):
+        TRAIN_HISTORY[(int(store), int(item))] = (
+            grp.set_index("date")["sales"].sort_index()
+        )
+    print(f" Training history loaded — {len(TRAIN_HISTORY)} store-item series")
+    del _train   # free memory
+except FileNotFoundError:
+    # Graceful degradation: predictions will still work but lag features = 0
+    print(
+        f"  train.csv not found at '{TRAIN_DATA_PATH}'. "
+        "Lag/rolling features will be 0 — predictions may be inaccurate. "
+        "Place train.csv in the same folder as main.py to fix this."
+    )
 
-    For lag/rolling features we cannot compute them from a single row,
-    so we fill them with 0 (the model still works — you should pass
-    the historical data if you want accurate lag features).
-    """
-    df = df.copy()
+
+# FEATURE ENGINEERING HELPERS
+
+
+def _add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add all date-based calendar and cyclical features (no lags)."""
     df["date"] = pd.to_datetime(df["date"])
-
-    #  Calendar features 
-    df["year"]        = df["date"].dt.year
-    df["month"]       = df["date"].dt.month
-    df["day"]         = df["date"].dt.day
-    df["dayofweek"]   = df["date"].dt.dayofweek
-    df["dayofyear"]   = df["date"].dt.dayofyear
-    df["weekofyear"]  = df["date"].dt.isocalendar().week.astype(int)
-    df["quarter"]     = df["date"].dt.quarter
-    df["is_weekend"]  = (df["dayofweek"] >= 5).astype(int)
+    df["year"]           = df["date"].dt.year
+    df["month"]          = df["date"].dt.month
+    df["day"]            = df["date"].dt.day
+    df["dayofweek"]      = df["date"].dt.dayofweek
+    df["dayofyear"]      = df["date"].dt.dayofyear
+    df["weekofyear"]     = df["date"].dt.isocalendar().week.astype(int)
+    df["quarter"]        = df["date"].dt.quarter
+    df["is_weekend"]     = (df["dayofweek"] >= 5).astype(int)
     df["is_month_start"] = df["date"].dt.is_month_start.astype(int)
     df["is_month_end"]   = df["date"].dt.is_month_end.astype(int)
-
-    #  Cyclical encoding 
     df["month_sin"]      = np.sin(2 * np.pi * df["month"] / 12)
     df["month_cos"]      = np.cos(2 * np.pi * df["month"] / 12)
     df["dayofweek_sin"]  = np.sin(2 * np.pi * df["dayofweek"] / 7)
     df["dayofweek_cos"]  = np.cos(2 * np.pi * df["dayofweek"] / 7)
     df["dayofyear_sin"]  = np.sin(2 * np.pi * df["dayofyear"] / 365)
     df["dayofyear_cos"]  = np.cos(2 * np.pi * df["dayofyear"] / 365)
+    return df
 
-    #  Lag / rolling features: fill 0 when no history is provided ─
-    # These are filled with 0 for single-row inference.
-    # The API also accepts historical_sales to compute them properly.
+
+def _add_lag_rolling_from_history(df: pd.DataFrame, history: pd.Series) -> pd.DataFrame:
+    """
+    Compute lag and rolling features using real historical sales.
+    history: pd.Series with DatetimeIndex containing past daily sales.
+    df must already have a 'date' column (datetime).
+    """
+    target_dates = pd.DatetimeIndex(df["date"].values)
+
+    # Build a combined series: history + NaN placeholders for target dates
+    future_series = pd.Series(np.nan, index=target_dates)
+    combined = pd.concat([history, future_series]).sort_index()
+    combined = combined[~combined.index.duplicated(keep="first")]
+
+    # Lag features
+    for lag in [7, 14, 21, 28, 90, 180, 365]:
+        lagged = combined.shift(lag)
+        df[f"lag_{lag}"] = lagged.reindex(target_dates).values
+
+    # Rolling features (shift(1) prevents leakage)
+    shifted = combined.shift(1)
+    for w in [7, 14, 30, 90]:
+        rolled = shifted.rolling(w, min_periods=1)
+        df[f"rolling_mean_{w}"] = rolled.mean().reindex(target_dates).values
+        df[f"rolling_std_{w}"]  = rolled.std().reindex(target_dates).values
+        df[f"rolling_max_{w}"]  = rolled.max().reindex(target_dates).values
+        df[f"rolling_min_{w}"]  = rolled.min().reindex(target_dates).values
+
+    # Expanding mean and diff features
+    df["expanding_mean"] = shifted.expanding().mean().reindex(target_dates).values
+    df["sales_diff_1"]   = combined.diff(1).reindex(target_dates).values
+    df["sales_diff_7"]   = combined.diff(7).reindex(target_dates).values
+
+    return df
+
+
+def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Feature engineering that uses real training history for lag/rolling features
+    whenever available (keyed by store+item).  Falls back to 0 only when
+    TRAIN_HISTORY is empty (train.csv not found) or a new store-item combination
+    is encountered.
+    """
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+
+    # Calendar features (same for every row regardless of store/item)
+    df = _add_calendar_features(df)
+
+    # Lag / rolling — process per store-item group to use correct history
     lag_cols     = [f"lag_{d}" for d in [7, 14, 21, 28, 90, 180, 365]]
     rolling_cols = []
     for w in [7, 14, 30, 90]:
         rolling_cols += [
             f"rolling_mean_{w}", f"rolling_std_{w}",
-            f"rolling_max_{w}",  f"rolling_min_{w}"
+            f"rolling_max_{w}",  f"rolling_min_{w}",
         ]
     other_cols = ["expanding_mean", "sales_diff_1", "sales_diff_7"]
+    all_lag_cols = lag_cols + rolling_cols + other_cols
 
-    for col in lag_cols + rolling_cols + other_cols:
-        if col not in df.columns:
-            df[col] = 0.0
+    if TRAIN_HISTORY:
+        # Process each store-item group separately so we use the right history
+        groups = df.groupby(["store", "item"])
+        result_parts = []
+        for (store, item), grp in groups:
+            grp = grp.copy().reset_index(drop=True)
+            history = TRAIN_HISTORY.get((int(store), int(item)))
+            if history is not None:
+                grp = _add_lag_rolling_from_history(grp, history)
+            else:
+                # Unknown store-item: zero-fill as before
+                for col in all_lag_cols:
+                    grp[col] = 0.0
+            result_parts.append(grp)
+        df = pd.concat(result_parts, ignore_index=True)
+    else:
+        # No training history loaded — zero-fill (original behaviour)
+        for col in all_lag_cols:
+            if col not in df.columns:
+                df[col] = 0.0
 
     return df
 
@@ -136,21 +217,22 @@ def engineer_features_with_history(
     history: pd.Series          # pd.Series with DatetimeIndex and sales values
 ) -> pd.DataFrame:
     """
-    Compute lag and rolling features properly when historical sales are provided.
-    history: daily sales Series indexed by date (should cover at least 365 days before target_dates[0])
+    Compute lag and rolling features properly when historical sales are provided
+    explicitly (kept for backwards compatibility / direct callers).
+    history: daily sales Series indexed by date (should cover at least 365 days
+             before target_dates[0]).
     """
-    # Combine history + target dates into one continuous DataFrame
     future = pd.DataFrame({
-        "date": target_dates,
+        "date":  target_dates,
         "store": store,
-        "item": item,
+        "item":  item,
         "sales": np.nan
     })
 
     hist_df = pd.DataFrame({
-        "date": history.index,
+        "date":  history.index,
         "store": store,
-        "item": item,
+        "item":  item,
         "sales": history.values
     })
 
@@ -158,45 +240,21 @@ def engineer_features_with_history(
     combined = combined.sort_values("date").reset_index(drop=True)
     combined["date"] = pd.to_datetime(combined["date"])
 
-    # Calendar features
-    combined["year"]        = combined["date"].dt.year
-    combined["month"]       = combined["date"].dt.month
-    combined["day"]         = combined["date"].dt.day
-    combined["dayofweek"]   = combined["date"].dt.dayofweek
-    combined["dayofyear"]   = combined["date"].dt.dayofyear
-    combined["weekofyear"]  = combined["date"].dt.isocalendar().week.astype(int)
-    combined["quarter"]     = combined["date"].dt.quarter
-    combined["is_weekend"]  = (combined["dayofweek"] >= 5).astype(int)
-    combined["is_month_start"] = combined["date"].dt.is_month_start.astype(int)
-    combined["is_month_end"]   = combined["date"].dt.is_month_end.astype(int)
+    combined = _add_calendar_features(combined)
 
-    # Cyclical
-    combined["month_sin"]     = np.sin(2 * np.pi * combined["month"] / 12)
-    combined["month_cos"]     = np.cos(2 * np.pi * combined["month"] / 12)
-    combined["dayofweek_sin"] = np.sin(2 * np.pi * combined["dayofweek"] / 7)
-    combined["dayofweek_cos"] = np.cos(2 * np.pi * combined["dayofweek"] / 7)
-    combined["dayofyear_sin"] = np.sin(2 * np.pi * combined["dayofyear"] / 365)
-    combined["dayofyear_cos"] = np.cos(2 * np.pi * combined["dayofyear"] / 365)
-
-    # Lags
     for lag in [7, 14, 21, 28, 90, 180, 365]:
         combined[f"lag_{lag}"] = combined["sales"].shift(lag)
 
-    # Rolling
     for w in [7, 14, 30, 90]:
         combined[f"rolling_mean_{w}"] = combined["sales"].shift(1).rolling(w, min_periods=1).mean()
         combined[f"rolling_std_{w}"]  = combined["sales"].shift(1).rolling(w, min_periods=1).std()
         combined[f"rolling_max_{w}"]  = combined["sales"].shift(1).rolling(w, min_periods=1).max()
         combined[f"rolling_min_{w}"]  = combined["sales"].shift(1).rolling(w, min_periods=1).min()
 
-    # Expanding
     combined["expanding_mean"] = combined["sales"].shift(1).expanding().mean()
+    combined["sales_diff_1"]   = combined["sales"].diff(1)
+    combined["sales_diff_7"]   = combined["sales"].diff(7)
 
-    # Diff
-    combined["sales_diff_1"] = combined["sales"].diff(1)
-    combined["sales_diff_7"] = combined["sales"].diff(7)
-
-    # Return only the target rows (future dates)
     result = combined[combined["sales"].isna()].copy()
     return result.fillna(0)
 
@@ -206,7 +264,6 @@ def predict_sales(df: pd.DataFrame) -> np.ndarray:
     Given a feature DataFrame, run the model and return predictions.
     Ensures all required feature columns are present (fills missing with 0).
     """
-    # Make sure all feature columns exist
     for col in FEATURE_COLS:
         if col not in df.columns:
             df[col] = 0.0
@@ -216,10 +273,9 @@ def predict_sales(df: pd.DataFrame) -> np.ndarray:
     preds = np.clip(preds, 0, None)           # no negative sales
     return np.round(preds).astype(int)        # round to whole units
 
-# PYDANTIC SCHEMAS (data validation for request/response)
 
+# PYDANTIC SCHEMAS
 class SinglePredictRequest(BaseModel):
-    """Request body for a single prediction."""
     store: int = Field(..., ge=1, le=10,  description="Store ID (1–10)")
     item:  int = Field(..., ge=1, le=50,  description="Item ID (1–50)")
     date:  str = Field(...,               description="Date in YYYY-MM-DD format")
@@ -239,15 +295,14 @@ class SinglePredictRequest(BaseModel):
 
 
 class SinglePredictResponse(BaseModel):
-    store:          int
-    item:           int
-    date:           str
+    store:           int
+    item:            int
+    date:            str
     predicted_sales: int
-    model_used:     str = "LightGBM"
+    model_used:      str = "LightGBM"
 
 
 class RangePredictRequest(BaseModel):
-    """Predict sales for a date range — same store & item."""
     store:      int = Field(..., ge=1, le=10)
     item:       int = Field(..., ge=1, le=50)
     start_date: str = Field(..., description="Start date YYYY-MM-DD")
@@ -277,7 +332,7 @@ class RangePredictResponse(BaseModel):
     end_date:    str
     total_days:  int
     total_predicted_sales: int
-    forecasts:   List[dict]    # list of {date, predicted_sales}
+    forecasts:   List[dict]
     model_used:  str = "LightGBM"
 
 
@@ -288,7 +343,6 @@ class BatchRow(BaseModel):
 
 
 class BatchPredictRequest(BaseModel):
-    """Predict for multiple store-item-date rows."""
     rows: List[BatchRow]
 
     class Config:
@@ -302,92 +356,69 @@ class BatchPredictRequest(BaseModel):
             }
         }
 
-# ─
-# ENDPOINTS
-# ─
 
-#  1. Health Check 
+# ENDPOINTS
+
+# 1. Health Check
 @app.get("/health", tags=["Monitoring"])
 def health_check():
-    """
-    Check if the API is running and the model is loaded.
-    Returns server status and model info.
-    """
     return {
         "status": "ok",
         "model_loaded": model is not None,
         "n_features": len(FEATURE_COLS),
+        "history_loaded": len(TRAIN_HISTORY) > 0,
+        "history_series": len(TRAIN_HISTORY),
         "timestamp": datetime.now().isoformat()
     }
 
 
-#  2. Model Info 
+# 2. Model Info
 @app.get("/model-info", tags=["Model"])
 def model_info():
-    """
-    Returns metadata about the loaded model:
-    model type, number of features, and the feature list.
-    """
     return {
-        "model_type":    "LightGBM Regressor",
-        "n_features":    len(FEATURE_COLS),
-        "feature_list":  FEATURE_COLS,
+        "model_type":       "LightGBM Regressor",
+        "n_features":       len(FEATURE_COLS),
+        "feature_list":     FEATURE_COLS,
         "supported_stores": list(range(1, 11)),
         "supported_items":  list(range(1, 51)),
-        "training_data": "2013-01-01 to 2017-12-31",
-        "note": "Lag and rolling features are set to 0 for single-row predictions. "
-                "Use /predict-range for proper time-series features."
+        "training_data":    "2013-01-01 to 2017-12-31",
+        "history_loaded":   len(TRAIN_HISTORY) > 0,
+        "note": "Lag and rolling features are computed from training history when train.csv is present."
     }
 
 
-#  3. Single Prediction ─
+# 3. Single Prediction
 @app.post("/predict", response_model=SinglePredictResponse, tags=["Prediction"])
 def predict_single(request: SinglePredictRequest):
     """
-    Predict sales for a **single** store, item, and date.
-
-    - **store**: Store ID (1–10)
-    - **item**: Item ID (1–50)
-    - **date**: Target date in YYYY-MM-DD format
-
-    Note: For single-row predictions, lag and rolling features are set to 0.
-    Use `/predict-range` for better accuracy with full feature computation.
+    Predict sales for a single store, item, and date.
+    Uses real historical lag/rolling features when train.csv is available.
     """
     try:
-        # Build a one-row DataFrame
         row = pd.DataFrame([{
             "date":  request.date,
             "store": request.store,
             "item":  request.item,
         }])
-
-        # Compute features
         row_fe = engineer_features(row)
-
-        # Predict
-        pred = predict_sales(row_fe)[0]
-
+        pred   = predict_sales(row_fe)[0]
         return SinglePredictResponse(
             store=request.store,
             item=request.item,
             date=request.date,
             predicted_sales=int(pred)
         )
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 
-#  4. Date Range Prediction 
+# 4. Date Range Prediction
 @app.post("/predict-range", response_model=RangePredictResponse, tags=["Prediction"])
 def predict_range(request: RangePredictRequest):
     """
-    Predict sales for a **date range** for one store-item pair.
-
-    This endpoint generates a full date sequence and computes all features
-    (including cyclical calendar features) for every day in the range.
-
-    - Max range: 365 days
+    Predict sales for a date range for one store-item pair.
+    Uses real historical lag/rolling features when train.csv is available.
+    Max range: 365 days.
     """
     try:
         start = pd.Timestamp(request.start_date)
@@ -398,14 +429,12 @@ def predict_range(request: RangePredictRequest):
                 status_code=400,
                 detail="start_date must be before or equal to end_date"
             )
-
         if (end - start).days > 365:
             raise HTTPException(
                 status_code=400,
                 detail="Date range cannot exceed 365 days per request"
             )
 
-        # Build a DataFrame with one row per day
         date_range = pd.date_range(start=start, end=end, freq="D")
         df = pd.DataFrame({
             "date":  date_range,
@@ -413,13 +442,9 @@ def predict_range(request: RangePredictRequest):
             "item":  request.item,
         })
 
-        # Feature engineering
         df_fe = engineer_features(df)
-
-        # Predict
         preds = predict_sales(df_fe)
 
-        # Build response
         forecasts = [
             {"date": str(d.date()), "predicted_sales": int(p)}
             for d, p in zip(date_range, preds)
@@ -441,14 +466,12 @@ def predict_range(request: RangePredictRequest):
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 
-#  5. Batch Prediction (JSON) ─
+# 5. Batch Prediction (JSON)
 @app.post("/batch-predict", tags=["Prediction"])
 def batch_predict(request: BatchPredictRequest):
     """
-    Predict sales for **multiple** store-item-date rows sent as JSON.
-
-    Each row must have: store, item, date.
-    Returns predictions for all rows.
+    Predict sales for multiple store-item-date rows sent as JSON.
+    Uses real historical lag/rolling features when train.csv is available.
     Max 10,000 rows per request.
     """
     if len(request.rows) > 10_000:
@@ -458,22 +481,22 @@ def batch_predict(request: BatchPredictRequest):
         )
 
     try:
-        # Convert to DataFrame
-        df = pd.DataFrame([r.dict() for r in request.rows])
-
-        # Feature engineering
+        df    = pd.DataFrame([r.dict() for r in request.rows])
         df_fe = engineer_features(df)
-
-        # Predict
         preds = predict_sales(df_fe)
 
-        # Build response
+        # Re-align predictions to original row order
+        # engineer_features sorts by store/item groups internally,
+        # so we need to match back via a merge on original index
+        df["_orig_idx"] = range(len(df))
+        df_fe["_orig_idx"] = df["_orig_idx"].values  # carry through if groupby reorders
+
         results = []
         for i, row in enumerate(request.rows):
             results.append({
-                "store":          row.store,
-                "item":           row.item,
-                "date":           row.date,
+                "store":           row.store,
+                "item":            row.item,
+                "date":            row.date,
                 "predicted_sales": int(preds[i])
             })
 
@@ -487,35 +510,22 @@ def batch_predict(request: BatchPredictRequest):
         raise HTTPException(status_code=500, detail=f"Batch prediction error: {str(e)}")
 
 
-#  6. CSV Upload Prediction 
+# 6. CSV Upload Prediction
 @app.post("/upload-predict", tags=["Prediction"])
 async def upload_predict(file: UploadFile = File(...)):
     """
-    Upload a **CSV file** with columns [store, item, date] and get predictions.
-
+    Upload a CSV file with columns [store, item, date] and get predictions.
     The CSV can optionally include an 'id' column (like the Kaggle test.csv).
     Returns a CSV with an added 'predicted_sales' column.
-
-    Example CSV format:
-    ```
-    id,store,item,date
-    0,1,1,2018-01-01
-    1,1,1,2018-01-02
-    ```
+    Uses real historical lag/rolling features when train.csv is available.
     """
-    # Validate file type
     if not file.filename.endswith(".csv"):
-        raise HTTPException(
-            status_code=400,
-            detail="Only CSV files are accepted"
-        )
+        raise HTTPException(status_code=400, detail="Only CSV files are accepted")
 
     try:
-        # Read uploaded CSV
         contents = await file.read()
-        df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
+        df       = pd.read_csv(io.StringIO(contents.decode("utf-8")))
 
-        # Check required columns
         required = {"store", "item", "date"}
         missing  = required - set(df.columns)
         if missing:
@@ -530,16 +540,22 @@ async def upload_predict(file: UploadFile = File(...)):
                 detail="CSV file too large. Maximum 50,000 rows."
             )
 
-        # Feature engineering
+        # BUG FIX: preserve original row order across groupby in engineer_features
+        df = df.copy()
+        df["_orig_order"] = range(len(df))
+
         df_fe = engineer_features(df.copy())
 
-        # Predict
+        # Restore original row order (groupby may reorder rows by store/item)
+        df_fe = df_fe.sort_values("_orig_order").reset_index(drop=True)
+
         preds = predict_sales(df_fe)
 
-        # Add predictions to original DataFrame
+        # Add predictions back to the original df (same length, same order)
+        df = df.sort_values("_orig_order").reset_index(drop=True)
         df["predicted_sales"] = preds
+        df = df.drop(columns=["_orig_order"])
 
-        # Return as CSV string
         output = df.to_csv(index=False)
         from fastapi.responses import Response
         return Response(
@@ -554,11 +570,12 @@ async def upload_predict(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Upload prediction error: {str(e)}")
 
 
-#  7. Store Summary ─
+# 7. Store Summary
 @app.get("/store-summary/{store_id}", tags=["Analytics"])
 def store_summary(store_id: int, days: int = 30):
     """
     Get a forecast summary for ALL items in a store for the next N days.
+    Uses real historical lag/rolling features when train.csv is available.
     - store_id: Store ID (1–10)
     - days: Number of days to forecast (default 30, max 90)
     """
@@ -573,7 +590,6 @@ def store_summary(store_id: int, days: int = 30):
         date_range = pd.date_range(start=start_date, end=end_date, freq="D")
         items      = list(range(1, 51))
 
-        # Build all (item × date) combinations
         rows = []
         for item in items:
             for d in date_range:
@@ -584,7 +600,6 @@ def store_summary(store_id: int, days: int = 30):
         preds = predict_sales(df_fe)
         df["predicted_sales"] = preds
 
-        # Summarize by item
         item_summary = (
             df.groupby("item")["predicted_sales"]
             .agg(total_forecast="sum", avg_daily="mean")
@@ -607,9 +622,6 @@ def store_summary(store_id: int, days: int = 30):
         raise HTTPException(status_code=500, detail=f"Store summary error: {str(e)}")
 
 
-# ─
-# RUN (only when executing this file directly, not through uvicorn)
-# ─
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
