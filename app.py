@@ -134,8 +134,7 @@ with st.sidebar:
             " Single Prediction",
             " Date Range Forecast",
             " Store Dashboard",
-            " CSV Upload",
-            " Model Info"
+            " CSV Upload"
         ]
     )
 
@@ -628,73 +627,6 @@ elif page == " CSV Upload":
 
         except Exception as e:
             st.error(f"Could not read CSV file: {e}")
-
-# 
-# PAGE: MODEL INFO
-# 
-elif page == "Model Info":
-    st.title("Model Information")
-
-    if not is_healthy:
-        st.error("API is offline. Cannot fetch model info.")
-    else:
-        with st.spinner("Fetching model info..."):
-            try:
-                info = get_model_info()
-
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Model Type",   info.get("model_type",  "LightGBM"))
-                col2.metric("Features",     info.get("n_features",  "—"))
-                col3.metric("Training Data", info.get("training_data", "—"))
-
-                st.divider()
-
-                # Feature list table
-                st.subheader("Feature List")
-                features = info.get("feature_list", [])
-                if features:
-                    # Categorise features
-                    def categorise(f):
-                        if "lag"      in f: return "Lag Feature"
-                        if "rolling"  in f: return "Rolling Feature"
-                        if "sin" in f or "cos" in f: return "Cyclical Encoding"
-                        if "expanding" in f or "diff" in f: return "Trend Feature"
-                        return "Calendar Feature"
-
-                    feat_df = pd.DataFrame({
-                        "Feature": features,
-                        "Category": [categorise(f) for f in features]
-                    })
-
-                    # Filter by category
-                    category_filter = st.multiselect(
-                        "Filter by category",
-                        options=feat_df["Category"].unique().tolist(),
-                        default=feat_df["Category"].unique().tolist()
-                    )
-                    filtered = feat_df[feat_df["Category"].isin(category_filter)]
-                    st.dataframe(filtered, use_container_width=True, hide_index=True)
-
-                    # Pie chart of feature categories
-                    cat_counts = feat_df["Category"].value_counts().reset_index()
-                    cat_counts.columns = ["Category", "Count"]
-                    fig = px.pie(
-                        cat_counts, names="Category", values="Count",
-                        title="Feature Category Distribution",
-                        template="plotly_dark",
-                        color_discrete_sequence=px.colors.qualitative.Pastel
-                    )
-                    fig.update_layout(paper_bgcolor="#0e1117", font_color="white")
-                    st.plotly_chart(fig, use_container_width=True)
-
-                st.divider()
-
-                # Raw API response
-                with st.expander(" Raw API Response"):
-                    st.json(info)
-
-            except Exception as e:
-                st.error(f"Error fetching model info: {e}")
 
 # 
 # FOOTER
