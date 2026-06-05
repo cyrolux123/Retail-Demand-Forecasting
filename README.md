@@ -427,7 +427,7 @@ Rows where `lag_365` is NaN (the first ~365 days per series) are dropped before 
 Data Scientist · Kathmandu, Nepal
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-nabinkatwal-blue?logo=linkedin)](https://linkedin.com/in/nabinkatwal)
-[![GitHub](https://img.shields.io/badge/GitHub-cyrolox123-black?logo=github)](https://github.com/cyrolox123)
+[![GitHub](https://img.shields.io/badge/GitHub-cyrolox123-black?logo=github)](https://github.com/cyrolux123)
 [![Portfolio](https://img.shields.io/badge/Portfolio-nabinkatwal.com.np-orange)](https://nabinkatwal.com.np)
 [![Email](https://img.shields.io/badge/Email-katwalnk369@gmail.com-red?logo=gmail)](mailto:katwalnk369@gmail.com)
 
