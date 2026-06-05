@@ -359,7 +359,6 @@ Forecast all 50 items for a store over the next N days. Returns item-level total
 | Date Range Forecast | Forecast a full date range, view line chart + weekly aggregation, download CSV |
 | Store Dashboard | All-item forecast for a store - bar charts, top 10 / bottom 10 items |
 | CSV Upload | Upload your own CSV, get predictions back, download results |
-| Model Info | Full feature list, feature category pie chart, model metadata |
 
 ---
 
