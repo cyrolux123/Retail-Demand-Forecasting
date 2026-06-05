@@ -236,7 +236,6 @@ if page == " Overview":
     |  Date Range Forecast | Forecast an entire date range with charts |
     |  Store Dashboard | All-item forecast summary for a store |
     |  CSV Upload | Upload a CSV and download predictions |
-    | Model Info | Feature list and model metadata |
     """)
 
 # 
