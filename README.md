@@ -74,7 +74,7 @@ retail-demand-forecasting/
 │       └── mv_lstm_meta.json    ← Lookback window and feature list for multivariate LSTM
 │
 ├── Outputs
-│   └── submission_lightgbm.csv  ← Kaggle-format predictions on test set
+│   └── submission_lightgbm.csv  ← Predictions on test set
 │
 ├── requirements.txt             ← All Python dependencies
 └── README.md                    ← This file
@@ -83,8 +83,6 @@ retail-demand-forecasting/
 ---
 
 ## 📊 Dataset
-
-**Source:** [Kaggle - Store Item Demand Forecasting Challenge](https://www.kaggle.com/c/demand-forecasting-kernels-only)
 
 | Column | Description |
 |---|---|
@@ -386,7 +384,7 @@ The experiment is named `Retail_Demand_Forecasting`. Each run logs:
 ```
 Training:   2013-01-01  →  2017-09-30   (all but last 3 months)
 Validation: 2017-10-01  →  2017-12-31   (last 3 months of training data)
-Test:       2018-01-01  →  2018-03-31   (Kaggle test set, no labels)
+Test:       2018-01-01  →  2018-03-31   (Test set, no labels)
 ```
 
 Rows where `lag_365` is NaN (the first ~365 days per series) are dropped before training - the model needs at least one full year of history to compute all lag features.
