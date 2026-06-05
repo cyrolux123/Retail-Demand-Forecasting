@@ -14,7 +14,7 @@
 
 | What | Link |
 |---|---|
-|  Streamlit Dashboard | `https://nabinkatwal-retail-forecast.streamlit.app` |
+|  Streamlit Dashboard | `https://nabinkatwalretailsalesforecasting.streamlit.app/` |
 |  FastAPI Docs (Swagger) | `https://retail-demand-api.onrender.com/docs` |
 |  GitHub Repository | `https://github.com/cyrolox123/retail-demand-forecasting` |
 
