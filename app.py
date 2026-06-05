@@ -189,7 +189,7 @@ if page == " Overview":
     st.title(" Retail Demand Forecasting Dashboard")
     st.markdown("""
     This dashboard is powered by a **LightGBM** model trained on the
-    *Store Item Demand Forecasting* dataset (Kaggle).
+    *Store Item Demand Forecasting* dataset.
 
     **Dataset:** 5 years of daily sales across 10 stores and 50 items (500 series).
 
